@@ -28,14 +28,16 @@ func main() {
 		exitf("Missing parameters: -p, -i, -d are required\n")
 	}
 
-	// TODO: check if gcloud is installed
-	cmd := exec.Command("gcloud", "beta", "emulators", "spanner", "start")
+	// TODO: check if docker and gcloud is installed
+	cmd := exec.Command("docker", "run", "-p", "127.0.0.1:9010:9010", "-p", "127.0.0.1:9020:9020", "gcr.io/cloud-spanner-emulator/emulator:0.7.3")
 	// https://stackoverflow.com/questions/33165530/prevent-ctrlc-from-interrupting-exec-command-in-golang
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setpgid: true,
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
+	gCloudConfig := NewGCloudConfig()
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
@@ -46,6 +48,7 @@ func main() {
 		// before shutdown
 		// TODO: dump database
 		cmd.Process.Signal(os.Interrupt)
+		gCloudConfig.cleanUp()
 	}()
 
 	fmt.Println("Start spanner emulator...")
@@ -53,11 +56,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	cloudSDKConfig, err := setupCloudSDK(opts.Project)
-	if err != nil {
+	if err := gCloudConfig.setup(opts.Project); err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("export CLOUDSDK_ACTIVE_CONFIG_NAME=%s\n", cloudSDKConfig)
+	fmt.Printf("export CLOUDSDK_ACTIVE_CONFIG_NAME=%s\n", gCloudConfig.Name)
 
 	if err := createInstance(9020, opts.Project, opts.Instance); err != nil {
 		log.Fatal(err)
