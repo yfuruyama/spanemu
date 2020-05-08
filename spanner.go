@@ -24,7 +24,6 @@ type DatabaseRequest struct {
 }
 
 func createInstance(port int, projectID, instanceID string) error {
-	fmt.Println("Creating instance...")
 	req := InstanceRequest{
 		InstanceID: instanceID,
 		Instance: Instance{
@@ -45,7 +44,6 @@ func createInstance(port int, projectID, instanceID string) error {
 }
 
 func createDatabase(port int, projectID, instanceID, databaseID string) error {
-	fmt.Println("Creating database...")
 	req := DatabaseRequest{
 		CreateStatement: fmt.Sprintf("CREATE DATABASE `%s`", databaseID),
 	}

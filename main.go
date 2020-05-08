@@ -2,13 +2,10 @@ package main
 
 import (
 	"fmt"
+	"github.com/jessevdk/go-flags"
 	"log"
 	"os"
-	"os/exec"
 	"os/signal"
-	"syscall"
-
-	"github.com/jessevdk/go-flags"
 )
 
 type options struct {
@@ -28,14 +25,21 @@ func main() {
 		exitf("Missing parameters: -p, -i, -d are required\n")
 	}
 
-	// TODO: check if docker and gcloud is installed
-	cmd := exec.Command("docker", "run", "-p", "127.0.0.1:9010:9010", "-p", "127.0.0.1:9020:9020", "gcr.io/cloud-spanner-emulator/emulator:0.7.3")
-	// https://stackoverflow.com/questions/33165530/prevent-ctrlc-from-interrupting-exec-command-in-golang
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true,
+	// Steps:
+	// 1. Start emulator
+	// 2. Wait for the emulator to be up
+	// 3. Create instance and database
+	// 4. Import data (if any)
+	// 5. Create gcloud config
+	// 6. Show gcloud config to the user
+	// 7. Now all steps done, user can interact with the emulator
+
+	// TODO: check if gcloud is installed
+
+	emulator := Emulator{
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
 	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 
 	gCloudConfig := NewGCloudConfig()
 
@@ -43,40 +47,58 @@ func main() {
 	signal.Notify(interrupt, os.Interrupt)
 	go func() {
 		<-interrupt
-		fmt.Println("interrupted!!!")
-
-		// before shutdown
+		fmt.Println("Shutting down...")
 		// TODO: dump database
-		cmd.Process.Signal(os.Interrupt)
-		gCloudConfig.cleanUp()
+
+		if err := emulator.Shutdown(); err != nil {
+			log.Fatal(err)
+		}
+
+		fmt.Printf("Delete an ephemeral gcloud configuration: %s\n", gCloudConfig.Name)
+		if err := gCloudConfig.CleanUp(); err != nil {
+			log.Fatal(err)
+		}
 	}()
 
 	fmt.Println("Start spanner emulator...")
-	if err := cmd.Start(); err != nil {
+	if err := emulator.Start(); err != nil {
 		log.Fatal(err)
 	}
 
-	if err := gCloudConfig.setup(opts.Project); err != nil {
-		log.Fatal(err)
+	fmt.Println("Wait for emulator to be up and ready...")
+	if err := emulator.WaitForReady(); err != nil {
+		exitf("failed to wait for emulator to be up: %v", err)
 	}
-	fmt.Printf("export CLOUDSDK_ACTIVE_CONFIG_NAME=%s\n", gCloudConfig.Name)
 
+	fmt.Printf("Create Cloud Spanner Instance: %s\n", opts.Instance)
 	if err := createInstance(9020, opts.Project, opts.Instance); err != nil {
 		log.Fatal(err)
 	}
+	fmt.Printf("Create Cloud Spanner Database: %s\n", opts.Database)
 	if err := createDatabase(9020, opts.Project, opts.Instance, opts.Database); err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Print("export SPANNER_EMULATOR_HOST=localhost:9010\n")
+	fmt.Printf("Create an ephemeral gcloud configuration: %s\n", gCloudConfig.Name)
+	if err := gCloudConfig.Setup(opts.Project); err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Printf(`Now emulator is ready. You can set the following environment variables to access the emulator.
+# gcloud
+export CLOUDSDK_ACTIVE_CONFIG_NAME=%s
+# Cloud Spanner tools
+export SPANNER_EMULATOR_HOST=localhost:9010
+`, gCloudConfig.Name)
 
 	// TODO: wait for shutdown
-	if err := cmd.Wait(); err != nil {
+	// if emulator process is killed, this process is also gracefully shutdowned.
+	if err := emulator.WaitForFinish(); err != nil {
 		log.Fatal(err)
 	}
 }
 
 func exitf(format string, a ...interface{}) {
-	fmt.Fprintf(os.Stderr, format, a...)
+	fmt.Fprintln(os.Stderr, "ERROR: " + fmt.Sprintf(format, a...))
 	os.Exit(1)
 }
