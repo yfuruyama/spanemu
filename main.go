@@ -21,7 +21,10 @@ const (
 func main() {
 	var opts options
 	if _, err := flags.Parse(&opts); err != nil {
-		exitf("invalid options: %v\n", err)
+		if err, ok := err.(*flags.Error); ok && err.Type == flags.ErrHelp {
+			os.Exit(0)
+		}
+		exitf("invalid options")
 	}
 
 	if opts.Project == "" || opts.Instance == "" || opts.Database == "" {

@@ -2,7 +2,7 @@ spanemu
 ===
 Cloud Spanner Emulator Wrapper.
 
-This wrapper command does the following things to help you to run Cloud Spanner Emulator with a single command.
+This wrapper command does the following actions to help you to run the [Cloud Spanner Emulator](https://cloud.google.com/spanner/docs/emulator) with a single command.
 
 1. Start emulator
 2. Wait for the emulator to be up
