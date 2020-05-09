@@ -28,7 +28,7 @@ func main() {
 	}
 
 	if opts.Project == "" || opts.Instance == "" || opts.Database == "" {
-		exitf("missing parameters: -p, -i, -d are required\n")
+		exitf("missing parameters: -p, -i, -d are required")
 	}
 
 	emulator := &Emulator{
