@@ -2,18 +2,30 @@ spanemu
 ===
 Cloud Spanner Emulator Wrapper.
 
-## Why wrapper?
+This wrapper command does the following things to help you to run Cloud Spanner Emulator with a single command.
 
-* gcloud configuration
-* Instance/Database creation
-* Data Persistence
+1. Start emulator
+2. Wait for the emulator to be up
+3. Create Spanner instance
+4. Create Spanner database
+5. Create an ephemeral gcloud configuration
 
-## Requirements
+## Usage
 
-* docker
-* gcloud
+```
+$ spanemu -p test-project -i test-instance -d test-db
+```
 
-If you want to persistent data to the disk for the emulator session, you need the following tools as well.
+## Install
 
-* spanner-cli
-* spanner-dump
+```
+$ go get -u github.com/yfuruyama/spanemu
+```
+
+## Roadmap
+
+* Allow --host-port and --rest-port options
+* Data persistence with spanner-cli and spanner-dump.
+
+## Disclaimer
+This is not an official Google product.

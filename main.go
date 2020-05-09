@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"github.com/jessevdk/go-flags"
-	"log"
 	"os"
 	"os/signal"
 )
@@ -14,87 +13,80 @@ type options struct {
 	Database string `short:"d" long:"database" description:"Database"`
 }
 
+const (
+	defaultGRPCPort = 9010
+	defaultRESTPort = 9020
+)
+
 func main() {
 	var opts options
 	if _, err := flags.Parse(&opts); err != nil {
-		exitf("Invalid options\n")
+		exitf("invalid options: %v\n", err)
 	}
 
-	// TODO: --host-port and --rest-port
 	if opts.Project == "" || opts.Instance == "" || opts.Database == "" {
-		exitf("Missing parameters: -p, -i, -d are required\n")
+		exitf("missing parameters: -p, -i, -d are required\n")
 	}
 
-	// Steps:
-	// 1. Start emulator
-	// 2. Wait for the emulator to be up
-	// 3. Create instance and database
-	// 4. Import data (if any)
-	// 5. Create gcloud config
-	// 6. Show gcloud config to the user
-	// 7. Now all steps done, user can interact with the emulator
-
-	// TODO: check if gcloud is installed
-
-	emulator := Emulator{
+	emulator := &Emulator{
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
+		GRPCPort: defaultGRPCPort,
+		RESTPort: defaultRESTPort,
 	}
-
 	gCloudConfig := NewGCloudConfig()
-
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt)
-	go func() {
-		<-interrupt
-		fmt.Println("Shutting down...")
-		// TODO: dump database
-
-		if err := emulator.Shutdown(); err != nil {
-			log.Fatal(err)
-		}
-
-		fmt.Printf("Delete an ephemeral gcloud configuration: %s\n", gCloudConfig.Name)
-		if err := gCloudConfig.CleanUp(); err != nil {
-			log.Fatal(err)
-		}
-	}()
+	go waitInterrupt(emulator, gCloudConfig)
 
 	fmt.Println("Start spanner emulator...")
 	if err := emulator.Start(); err != nil {
-		log.Fatal(err)
+		exitf("failed to start emulator: %v", err)
 	}
 
-	fmt.Println("Wait for emulator to be up and ready...")
+	fmt.Println("Wait for emulator to be up...")
 	if err := emulator.WaitForReady(); err != nil {
-		exitf("failed to wait for emulator to be up: %v", err)
+		exitf("failed to wait for emulator: %v", err)
 	}
 
-	fmt.Printf("Create Cloud Spanner Instance: %s\n", opts.Instance)
-	if err := createInstance(9020, opts.Project, opts.Instance); err != nil {
-		log.Fatal(err)
+	fmt.Printf("Create spanner instance: %s\n", opts.Instance)
+	if err := createInstance(defaultRESTPort, opts.Project, opts.Instance); err != nil {
+		exitf("failed to create spanner instance: %v", err)
 	}
-	fmt.Printf("Create Cloud Spanner Database: %s\n", opts.Database)
-	if err := createDatabase(9020, opts.Project, opts.Instance, opts.Database); err != nil {
-		log.Fatal(err)
+	fmt.Printf("Create spanner database: %s\n", opts.Database)
+	if err := createDatabase(defaultRESTPort, opts.Project, opts.Instance, opts.Database); err != nil {
+		exitf("failed to create spanner database: %v", err)
 	}
 
 	fmt.Printf("Create an ephemeral gcloud configuration: %s\n", gCloudConfig.Name)
-	if err := gCloudConfig.Setup(opts.Project); err != nil {
-		log.Fatal(err)
+	if err := gCloudConfig.Setup(opts.Project, defaultRESTPort); err != nil {
+		exitf("failed to create gcloud configuration: %v", err)
 	}
 
-	fmt.Printf(`Now emulator is ready. You can set the following environment variables to access the emulator.
-# gcloud
-export CLOUDSDK_ACTIVE_CONFIG_NAME=%s
-# Cloud Spanner tools
-export SPANNER_EMULATOR_HOST=localhost:9010
-`, gCloudConfig.Name)
+	fmt.Printf(`You can use the following environment variables to access the emulator.
 
-	// TODO: wait for shutdown
-	// if emulator process is killed, this process is also gracefully shutdowned.
+export CLOUDSDK_ACTIVE_CONFIG_NAME=%s
+export SPANNER_EMULATOR_HOST=localhost:%d
+
+Now emulator is ready.
+`, gCloudConfig.Name, defaultGRPCPort)
+
 	if err := emulator.WaitForFinish(); err != nil {
-		log.Fatal(err)
+		exitf("failed to wait for emulator to be finished: %v", err)
+	}
+}
+
+func waitInterrupt(emulator *Emulator, gCloudConfig *GCloudConfig) {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	<-c
+
+	fmt.Println("Shutting down...")
+	if err := emulator.Shutdown(); err != nil {
+		exitf("failed to shut down emulator: %v", err)
+	}
+
+	fmt.Printf("Delete an ephemeral gcloud configuration: %s\n", gCloudConfig.Name)
+	if err := gCloudConfig.CleanUp(); err != nil {
+		exitf("failed to delete gcloud configuration: %v", err)
 	}
 }
 
