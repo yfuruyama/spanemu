@@ -30,7 +30,7 @@ func (e *Emulator) Start() error {
 	cmd := exec.Command("docker", "run",
 		"-p", fmt.Sprintf("127.0.0.1:%d:%d", e.GRPCPort, e.GRPCPort),
 		"-p", fmt.Sprintf("127.0.0.1:%d:%d", e.RESTPort, e.RESTPort),
-		"gcr.io/cloud-spanner-emulator/emulator:0.7.28")
+		"gcr.io/cloud-spanner-emulator/emulator:1.0.0")
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		// https://stackoverflow.com/questions/33165530/prevent-ctrlc-from-interrupting-exec-command-in-golang
 		Setpgid: true,
