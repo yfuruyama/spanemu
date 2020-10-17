@@ -19,6 +19,8 @@ type Emulator struct {
 	Cmd      *exec.Cmd
 }
 
+const emulatorVersion = "1.1.1"
+
 func (e *Emulator) Start() error {
 	if _, err := exec.LookPath("docker"); err != nil {
 		if err == exec.ErrNotFound {
@@ -30,7 +32,7 @@ func (e *Emulator) Start() error {
 	cmd := exec.Command("docker", "run",
 		"-p", fmt.Sprintf("127.0.0.1:%d:%d", e.GRPCPort, e.GRPCPort),
 		"-p", fmt.Sprintf("127.0.0.1:%d:%d", e.RESTPort, e.RESTPort),
-		"gcr.io/cloud-spanner-emulator/emulator:1.0.0")
+		fmt.Sprintf("gcr.io/cloud-spanner-emulator/emulator:%s", emulatorVersion))
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		// https://stackoverflow.com/questions/33165530/prevent-ctrlc-from-interrupting-exec-command-in-golang
 		Setpgid: true,
