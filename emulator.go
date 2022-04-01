@@ -19,7 +19,7 @@ type Emulator struct {
 	Cmd      *exec.Cmd
 }
 
-const emulatorVersion = "1.1.1"
+const emulatorVersion = "1.4.2"
 
 func (e *Emulator) Start() error {
 	if _, err := exec.LookPath("docker"); err != nil {
